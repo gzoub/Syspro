@@ -6,47 +6,51 @@
 #include <fcntl.h>      
 #include <sys/stat.h>
 
-
-
+// Job Management System Console
+// Sends job management requests to the coordinator
 int main(int argc, char *argv[]){
 
 
+    // Parse command line arguments
     char *ops_file_path = NULL;
-
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-i") == 0 && (i + 1 < argc)) {
-            ops_file_path = argv[i + 1]; 
+        if (strcmp(argv[i], "-i") == 0 && (i + 1 < argc)) 
+            ops_file_path = argv[i + 1];  // Input file with commands
     }
 
+    // Connect to coordinator pipes
     int fd_in= open(PIPE_IN, O_WRONLY);
     if(fd_in == -1){
         perror("Error opening pipe in");
         exit(1);
     }
 
-    int fd_out = open(PIPE_OUT, O_RDONLY | O_NONBLOCK);
+    int fd_out = open(PIPE_OUT, O_RDONLY);
     if(fd_out == -1){
         perror("Error opening pipe out");
         exit(1);
     }
 
+    // Read from file or stdin
     FILE *input_src = stdin;
     if(ops_file_path != NULL){
-        input_src = fopen(ops_file_path,"r");
-
+        input_src = fopen(ops_file_path, "r");
     }
+    // Process each command line
     char line[500];
-    while(fgets(line,sizeof(line),input_src)){
-        
+    while(fgets(line, sizeof(line), input_src)){
+        // Remove newline and initialize request
         line[strcspn(line, "\n")] = 0;
         jms_request req;
+        memset(&req, 0, sizeof(req));  // Clear struct to handle invalid commands 
 
-        if(strncmp(line,"submit ",7) == 0){
+        // Parse command and populate request struct
+        if(strncmp(line, "submit ", 7) == 0){
             req.type = submit;
-            strncpy(req.job_command , line + 7,MAX_CMD_LEN);
+            strncpy(req.job_command, line + 7, MAX_CMD_LEN);
         }
 
-        if(strncmp(line,"status ",7) == 0){
+        if(strncmp(line, "status ", 7) == 0){
             req.type = status;
             req.job_id = atoi(line + 7);
         }
@@ -83,8 +87,14 @@ int main(int argc, char *argv[]){
             req.type = shutdown;
         }
 
-        write(fd_in , &req , sizeof(jms_request));
-
+        // Send request to coordinator
+        write(fd_in, &req, sizeof(jms_request));
     }
 
+    // Clean up
+    close(fd_in);
+    close(fd_out);
+
 }
+
+

@@ -6,7 +6,8 @@
 #include <fcntl.h>      
 #include <sys/stat.h>
 
-
+// Job Management System Coordinator
+// Receives and processes job requests from clients via named pipes
 int main(int argc, char *argv[]){
 
     // Clean up any existing pipes
@@ -23,33 +24,45 @@ int main(int argc, char *argv[]){
         exit(1);
     }
 
-    // Open input pipe in non-blocking
-    int fd = open(PIPE_IN , O_RDONLY | O_NONBLOCK);
-    if(fd == -1){
+    // Open input pipe for reading client requests
+    int fd_in = open(PIPE_IN , O_RDONLY);
+    if(fd_in == -1){
         perror("Error opening pipe in");
+        exit(1);
+    }
+
+    // Open output pipe for writing responses back to clients
+    int fd_out = open(PIPE_OUT , O_WRONLY);
+    if(fd_out == -1){
+        perror("Error opening pipe out");
         exit(1);
     }
 
     jms_request msg;
 
-    // Process incoming requests
-    while(read(fd , &msg ,sizeof(jms_request))){
+    // Read and process incoming requests in a loop
+    while(read(fd_in , &msg , sizeof(jms_request))){
 
         switch(msg.type){
-            case submit: 
+            case submit:
+                // Handle job submission request
                 printf("submit request, Job : %s\n", msg.job_command);
                 break;
             case status:
                 printf("status request, Job id :  %i\n" , msg.job_id);
+
                 break;
             case status_all:
                 printf("status_all request, n : %i\n"  , msg.n_time);   
+
                 break;
             case show_active:
-                printf("show_active request");
+                printf("show_active request\n");
+
                 break;
             case show_pools:
-                printf("show_pools request");
+                printf("show_pools request\n");
+
                 break;
             case show_finished:
                 printf("show_finished request, Job id :  %i\n" , msg.job_id);
@@ -61,14 +74,17 @@ int main(int argc, char *argv[]){
                 printf("resume request, Job id :  %i\n" , msg.job_id);
                 break;
             case shutdown:
-                printf("shutdown request");
-                // Cleanup and exit
-                close(fd);
+                printf("shutdown request\n");
+                // Clean up resources and exit
+                close(fd_in);
+                close(fd_out);
                 unlink(PIPE_IN);
                 unlink(PIPE_OUT);
-                break;
-            default :
-                printf("no valid request");
+                return 0;
+            default:
+                // Handle unrecognized request types
+                printf("no valid request\n");
         }
     }
 }
+
