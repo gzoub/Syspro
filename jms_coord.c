@@ -1,14 +1,19 @@
-#include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>      
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include "util.h"
+#include "requests.h"
+
 
 // Job Management System Coordinator
 // Receives and processes job requests from clients via named pipes
 int main(int argc, char *argv[]){
+
+    int max_jobs_per_pool = atoi(argv[2]); // Maximum number of jobs per pool
 
     // Clean up any existing pipes
     unlink(PIPE_IN);
@@ -37,6 +42,8 @@ int main(int argc, char *argv[]){
         perror("Error opening pipe out");
         exit(1);
     }
+    PoolInfo pool_info[100]; // Array to store information about job pools
+    int pool_count = 0; // Counter for the number of job pools
 
     jms_request msg;
 
@@ -47,6 +54,9 @@ int main(int argc, char *argv[]){
             case submit:
                 // Handle job submission request
                 printf("submit request, Job : %s\n", msg.job_command);
+
+                submit_job(&msg, pool_info, pool_count, max_jobs_per_pool);
+
                 break;
             case status:
                 printf("status request, Job id :  %i\n" , msg.job_id);

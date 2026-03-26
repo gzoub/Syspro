@@ -1,6 +1,8 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include <sys/types.h>
+
 #define PIPE_IN "jms_in"
 #define PIPE_OUT "jms_out"
 // Maximum command length
@@ -26,5 +28,15 @@ typedef struct {
     int n_time;                      // Time parameter
     char job_command[MAX_CMD_LEN];   // Job command string
 } jms_request;
+
+typedef struct {
+    pid_t pool_pid;
+    int current_jobs;
+    int fd_write; 
+    int fd_read;
+} PoolInfo;
+
+
+
 
 #endif
