@@ -29,14 +29,16 @@ typedef struct {
     char job_command[MAX_CMD_LEN];   // Job command string
 } jms_request;
 
+
+
 typedef struct {
-    pid_t pool_pid;
+    int pool_pid;
     int current_jobs;
     int fd_write; 
     int fd_read;
+    char pipe_in_name[256];
+    char pipe_out_name[256];
 } PoolInfo;
-
-
 
 
 #endif

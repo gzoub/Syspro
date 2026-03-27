@@ -43,7 +43,7 @@ int main(int argc, char *argv[]){
         exit(1);
     }
     PoolInfo pool_info[100]; // Array to store information about job pools
-    int pool_count = 0; // Counter for the number of job pools
+    int *pool_count = 0; // Counter for the number of job pools
 
     jms_request msg;
 
@@ -53,10 +53,8 @@ int main(int argc, char *argv[]){
         switch(msg.type){
             case submit:
                 // Handle job submission request
-                printf("submit request, Job : %s\n", msg.job_command);
-
-                submit_job(&msg, pool_info, pool_count, max_jobs_per_pool);
-
+                submit_job(&msg, pool_info, &pool_count, max_jobs_per_pool, argv[1], fd_out); 
+                               
                 break;
             case status:
                 printf("status request, Job id :  %i\n" , msg.job_id);
