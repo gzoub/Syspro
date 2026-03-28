@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include "util.h"
 #include "requests.h"
 
@@ -43,55 +44,106 @@ int main(int argc, char *argv[]){
         exit(1);
     }
     PoolInfo pool_info[100]; // Array to store information about job pools
-    int *pool_count = 0; // Counter for the number of job pools
+    int pool_count = 0; // Counter for the number of job pools
 
     jms_request msg;
 
+
+    fd_set readfds;
+    int max_fd;
+
     // Read and process incoming requests in a loop
-    while(read(fd_in , &msg , sizeof(jms_request))){
+    while(1){
 
-        switch(msg.type){
-            case submit:
-                // Handle job submission request
-                submit_job(&msg, pool_info, &pool_count, max_jobs_per_pool, argv[1], fd_out); 
-                               
-                break;
-            case status:
-                printf("status request, Job id :  %i\n" , msg.job_id);
+        FD_ZERO(&readfds);
+        FD_SET(fd_in, &readfds); // Add console input to monitored file descriptors
+        max_fd = fd_in;
 
-                break;
-            case status_all:
-                printf("status_all request, n : %i\n"  , msg.n_time);   
+        for (int i = 0; i < pool_count; i++) {
+            if (pool_info[i].current_jobs != -1) { // Only monitor active pools
+                FD_SET(pool_info[i].fd_read, &readfds);
+                if (pool_info[i].fd_read > max_fd) max_fd = pool_info[i].fd_read;
+            }
+        }
 
-                break;
-            case show_active:
-                printf("show_active request\n");
+        int wait_status;
+        pid_t p_pid;
+        while ((p_pid = waitpid(-1, &wait_status, WNOHANG)) > 0) {
+            for (int i = 0; i < pool_count; i++) {
+                if (pool_info[i].pool_pid == p_pid) {
+                    pool_info[i].current_jobs = -1; // Mark pool as terminated
+                    close(pool_info[i].fd_read);
+                    close(pool_info[i].fd_write);
+                }
+            }
+        }
 
-                break;
-            case show_pools:
-                printf("show_pools request\n");
+        if (select(max_fd + 1, &readfds, NULL, NULL, NULL) < 0) {
+            perror("Select error");
+            continue;
+        }
 
-                break;
-            case show_finished:
-                printf("show_finished request, Job id :  %i\n" , msg.job_id);
-                break;
-            case suspend:
-                printf("suspend request, Job id :  %i\n" , msg.job_id);
-                break;
-            case resume:
-                printf("resume request, Job id :  %i\n" , msg.job_id);
-                break;
-            case shutdown:
-                printf("shutdown request\n");
-                // Clean up resources and exit
-                close(fd_in);
-                close(fd_out);
-                unlink(PIPE_IN);
-                unlink(PIPE_OUT);
-                return 0;
-            default:
-                // Handle unrecognized request types
-                printf("no valid request\n");
+        if(FD_ISSET(fd_in, &readfds))
+        {
+            // Read a request from the input pipe
+            if(read(fd_in, &msg, sizeof(msg)) > 0){
+
+                switch(msg.type){
+                    case submit:
+                        // Handle job submission request
+                        submit_job(&msg, pool_info, &pool_count, max_jobs_per_pool, argv[1], fd_out); 
+                                    
+                        break;
+                    case status:
+                        printf("status request, Job id :  %i\n" , msg.job_id);
+
+                        break;
+                    case status_all:
+                        printf("status_all request, n : %i\n"  , msg.n_time);   
+
+                        break;
+                    case show_active:
+                        printf("show_active request\n");
+
+                        break;
+                    case show_pools:
+                        printf("show_pools request\n");
+
+                        break;
+                    case show_finished:
+                        printf("show_finished request, Job id :  %i\n" , msg.job_id);
+                        break;
+                    case suspend:
+                        printf("suspend request, Job id :  %i\n" , msg.job_id);
+                        break;
+                    case resume:
+                        printf("resume request, Job id :  %i\n" , msg.job_id);
+                        break;
+                    case shutdown:
+                        printf("shutdown request\n");
+                        // Clean up resources and exit
+                        close(fd_in);
+                        close(fd_out);
+                        unlink(PIPE_IN);
+                        unlink(PIPE_OUT);
+                        return 0;
+                    default:
+                        // Handle unrecognized request types
+                        printf("no valid request\n");
+                }
+            }
+        }
+
+        for (int i = 0; i < pool_count; i++) {
+            if (pool_info[i].current_jobs != -1 && FD_ISSET(pool_info[i].fd_read, &readfds)) {
+                char pool_msg[256];
+                int n = read(pool_info[i].fd_read, pool_msg, sizeof(pool_msg)-1);
+                if (n > 0) {
+                    pool_msg[n] = '\0';
+                    printf("[Coord] Pool %d says: %s\n", pool_info[i].pool_pid, pool_msg);
+                    // TODO: Update job status tracking when job completion message received
+                }
+            }
         }
     }
 }

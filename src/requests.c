@@ -26,11 +26,11 @@ void create_pool(PoolInfo *pool_info, int id, int max_jobs, char* path) {
 
     if (pool_info->pool_pid == 0) {
         // Child process: Execute pool worker
-        char n_str[10];
-        sprintf(n_str, "%d", max_jobs);
+        char n[10];
+        sprintf(n, "%d", max_jobs);
         
         // Launch jms_pool with pipe names and configuration
-        execl("./jms_pool", "jms_pool", "-n", n_str, "-l", path, 
+        execl("./jms_pool", "jms_pool", "-n", n, "-l", path, 
               "-r", pool_info->pipe_in_name, "-w", pool_info->pipe_out_name, NULL);
         perror("Exec failed");
         exit(1);
